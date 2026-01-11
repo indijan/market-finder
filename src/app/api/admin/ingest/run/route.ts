@@ -312,19 +312,19 @@ export const POST = async (request: NextRequest) => {
     );
   }
 
-  if (!googleApiKey && source !== "osm") {
-    return NextResponse.json(
-      { error: "GOOGLE_PLACES_API_KEY is not set" },
-      { status: 400 }
-    );
-  }
-
   const ingested: { source: string; count: number }[] = [];
 
   if (source === "google" || source === "both") {
+    if (!googleApiKey) {
+      return NextResponse.json(
+        { error: "GOOGLE_PLACES_API_KEY is not set" },
+        { status: 400 }
+      );
+    }
+    const apiKey = googleApiKey;
     for (const region of REGIONS) {
       for (const keyword of KEYWORDS) {
-        const places = await fetchGooglePlaces(googleApiKey, region, keyword);
+        const places = await fetchGooglePlaces(apiKey, region, keyword);
         const limitedPlaces = maxPlaces > 0 ? places.slice(0, maxPlaces) : places;
         for (const place of limitedPlaces) {
           const location = place.geometry?.location;
@@ -335,10 +335,7 @@ export const POST = async (request: NextRequest) => {
           let detailsError: string | null = null;
           if (detailsEnabled) {
             try {
-              const detailsPayload = await fetchGooglePlaceDetails(
-                googleApiKey,
-                place.place_id
-              );
+              const detailsPayload = await fetchGooglePlaceDetails(apiKey, place.place_id);
               details = detailsPayload.result ?? null;
               detailsStatus = detailsPayload.status ?? null;
               detailsError = detailsPayload.error_message ?? null;
@@ -350,11 +347,11 @@ export const POST = async (request: NextRequest) => {
 
           const coverPhoto =
             place.photos?.[0]?.photo_reference
-              ? buildGooglePhotoUrl(place.photos[0].photo_reference, googleApiKey)
+              ? buildGooglePhotoUrl(place.photos[0].photo_reference, apiKey)
               : null;
           const detailsPhoto =
             details?.photos?.[0]?.photo_reference && !coverPhoto
-              ? buildGooglePhotoUrl(details.photos[0].photo_reference, googleApiKey)
+              ? buildGooglePhotoUrl(details.photos[0].photo_reference, apiKey)
               : null;
 
           const isStoreByHours = isLikelyStoreByHours(details?.opening_hours?.weekday_text);
