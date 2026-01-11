@@ -59,9 +59,9 @@ export const MapView = ({
       onLoad={(map) => {
         mapRef.current = map;
       }}
-      onIdle={(map) => {
+      onIdle={() => {
         if (!onCenterChange) return;
-        const mapInstance = map ?? mapRef.current;
+        const mapInstance = mapRef.current;
         if (!mapInstance) return;
         const nextCenter = mapInstance.getCenter();
         if (!nextCenter) return;
