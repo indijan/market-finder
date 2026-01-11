@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --clue-ink: #e6eef5;
+  --clue-dark: #05070b;
+  --clue-card: #0f1621;
+  --clue-accent: #ffbf5f;
+  --clue-teal: #2de0b3;
+}
+
+@theme inline {
+  --color-background: var(--clue-dark);
+  --color-foreground: var(--clue-ink);
+  --font-sans: var(--font-space-grotesk);
+  --font-display: var(--font-fraunces);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: radial-gradient(circle at top, #0a1220 0%, #05070b 55%, #040508 100%);
+  color: var(--clue-ink);
+  font-family: var(--font-sans);
+  letter-spacing: 0.01em;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+.clue-marker {
+  background: transparent;
+  border: none;
+}
+
+.clue-marker__dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #0b0f16;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
