@@ -33,6 +33,12 @@ const REGIONS = [
 
 const KEYWORDS = ["farmers market", "night market", "marketplace", "craft market"];
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
 const delay = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
