@@ -44,5 +44,8 @@ Open http://localhost:3000
 ## Notes
 
 - `search_markets` function drives radius + date filtering.
+- Google Places ingestion is disabled unless `GOOGLE_PLACES_ENABLED=true`.
+- Google Places ingest now only links `place_id` to existing markets and does not store Places details.
+- Run `purge_google_places_cache()` in Supabase on a schedule (e.g. daily) to enforce Places data TTL.
 - Replace the map placeholder with Mapbox/Leaflet when ready.
 - Ingestion pseudocode: `docs/ingestion.md`

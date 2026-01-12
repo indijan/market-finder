@@ -19,6 +19,7 @@ export type MarketSummary = {
   lng: number | null;
   distance_km: number | null;
   next_event_at: string | null;
+  has_google_source?: boolean | null;
 };
 
 export type MarketPhoto = {

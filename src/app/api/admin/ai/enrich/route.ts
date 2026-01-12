@@ -146,34 +146,11 @@ export const POST = async (request: NextRequest) => {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const fallbackToSources = !markets || markets.length === 0;
-  const sourceLookup = fallbackToSources
-    ? await supabase
-        .from("market_sources")
-        .select("market_id, payload")
-        .eq("source", "google")
-        .limit(limit)
-    : null;
-
-  if (fallbackToSources && sourceLookup?.error) {
-    return NextResponse.json({ error: sourceLookup.error.message }, { status: 500 });
-  }
-
   let created = 0;
   let marketsWithHours = 0;
   let marketsWithOccurrences = 0;
   let totalOccurrences = 0;
-  const records = fallbackToSources
-    ? (sourceLookup?.data || []).map((source) => {
-        const openingHours = (source.payload as { details?: { opening_hours?: { weekday_text?: string[] } } })
-          ?.details?.opening_hours;
-        return {
-          id: source.market_id,
-          opening_hours_text: openingHours?.weekday_text ?? null,
-          is_market: true,
-        };
-      })
-    : markets ?? [];
+  const records = markets ?? [];
 
   for (const market of records) {
     const weekdayText = (market as { opening_hours_text: string[] | null }).opening_hours_text;

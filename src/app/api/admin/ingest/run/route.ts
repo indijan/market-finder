@@ -13,28 +13,6 @@ type GooglePlace = {
   types?: string[];
 };
 
-type GooglePlaceDetails = {
-  place_id: string;
-  name?: string;
-  formatted_address?: string;
-  international_phone_number?: string;
-  website?: string;
-  price_level?: number;
-  editorial_summary?: { overview?: string };
-  opening_hours?: {
-    weekday_text?: string[];
-    periods?: unknown[];
-  };
-  photos?: { photo_reference: string }[];
-  reviews?: unknown[];
-  wheelchair_accessible_entrance?: boolean;
-};
-
-type GoogleDetailsResponse = {
-  status: string;
-  result?: GooglePlaceDetails;
-  error_message?: string;
-};
 
 const REGIONS = [
   { name: "Auckland", lat: -36.8485, lng: 174.7633, radius: 50000 },
@@ -54,15 +32,6 @@ const REGIONS = [
 ];
 
 const KEYWORDS = ["farmers market", "night market", "marketplace", "craft market"];
-
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
-
-const buildGooglePhotoUrl = (photoReference: string, apiKey: string) =>
-  `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${photoReference}&key=${apiKey}`;
 
 const delay = (ms: number) =>
   new Promise((resolve) => {
@@ -158,91 +127,6 @@ const isExcludedByType = (place: GooglePlace) => {
   return types.some((type) => TYPE_EXCLUDES.includes(type));
 };
 
-const normalizeTimeInput = (input: string) =>
-  input
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\u202f/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const parseTime = (input: string) => {
-  const normalized = normalizeTimeInput(input);
-  const match = normalized.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2] || "0");
-  const meridiem = match[3]?.toLowerCase();
-  const normalizedHours = meridiem
-    ? meridiem === "pm"
-      ? (hours % 12) + 12
-      : hours % 12
-    : Math.min(Math.max(hours, 0), 23);
-  return { hours: normalizedHours, minutes };
-};
-
-const parseDurationHours = (timeRaw: string) => {
-  const normalized = normalizeTimeInput(timeRaw);
-  if (normalized.toLowerCase().includes("24 hours")) return 24;
-  const parts = normalized.split(/-|–/).map((part) => part.trim());
-  if (parts.length < 2) return null;
-  const start = parseTime(parts[0]);
-  const end = parseTime(parts[1]);
-  if (!start || !end) return null;
-  const startMinutes = start.hours * 60 + start.minutes;
-  const endMinutes = end.hours * 60 + end.minutes;
-  const duration = endMinutes - startMinutes;
-  if (duration <= 0) return null;
-  return duration / 60;
-};
-
-const isLikelyStoreByHours = (weekdayText?: string[]) => {
-  if (!weekdayText || weekdayText.length < 7) return false;
-  let openDays = 0;
-  let longDayCount = 0;
-  for (const line of weekdayText) {
-    const normalized = normalizeTimeInput(line);
-    const parts = normalized.split(":").map((part) => part.trim());
-    if (parts.length < 2) continue;
-    const timeRaw = parts.slice(1).join(":");
-    if (timeRaw.toLowerCase() === "closed") continue;
-    openDays += 1;
-    const duration = parseDurationHours(timeRaw);
-    if (duration !== null && duration >= 8) {
-      longDayCount += 1;
-    }
-  }
-  return openDays >= 7 && longDayCount >= 5;
-};
-
-const fetchGooglePlaceDetails = async (apiKey: string, placeId: string) => {
-  const params = new URLSearchParams({
-    key: apiKey,
-    place_id: placeId,
-    fields: [
-      "place_id",
-      "name",
-      "formatted_address",
-      "international_phone_number",
-      "website",
-      "price_level",
-      "editorial_summary",
-      "photos",
-      "reviews",
-      "wheelchair_accessible_entrance",
-      "opening_hours",
-    ].join(","),
-  });
-
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`
-  );
-  if (!response.ok) {
-    throw new Error(`Google Place Details error: ${response.status}`);
-  }
-  const payload = (await response.json()) as GoogleDetailsResponse;
-  return payload;
-};
-
 type OverpassElement = {
   id: number;
   lat?: number;
@@ -296,7 +180,6 @@ export const POST = async (request: NextRequest) => {
 
   const { searchParams } = new URL(request.url);
   const source = searchParams.get("source") || "both";
-  const detailsEnabled = (searchParams.get("details") || "1") !== "0";
   const maxPlaces = Math.max(Number(searchParams.get("maxPlaces") || "0"), 0);
   const googlePlacesEnabled = process.env.GOOGLE_PLACES_ENABLED === "true";
 
@@ -326,84 +209,51 @@ export const POST = async (request: NextRequest) => {
       for (const keyword of KEYWORDS) {
         const places = await fetchGooglePlaces(apiKey, region, keyword);
         const limitedPlaces = maxPlaces > 0 ? places.slice(0, maxPlaces) : places;
+        let linkedCount = 0;
         for (const place of limitedPlaces) {
           const location = place.geometry?.location;
           if (!location) continue;
 
-          let details: GooglePlaceDetails | null = null;
-          let detailsStatus: string | null = null;
-          let detailsError: string | null = null;
-          if (detailsEnabled) {
-            try {
-              const detailsPayload = await fetchGooglePlaceDetails(apiKey, place.place_id);
-              details = detailsPayload.result ?? null;
-              detailsStatus = detailsPayload.status ?? null;
-              detailsError = detailsPayload.error_message ?? null;
-              await delay(150);
-            } catch (error) {
-              console.error("Google details fetch failed", error);
-            }
-          }
-
-          const coverPhoto =
-            place.photos?.[0]?.photo_reference
-              ? buildGooglePhotoUrl(place.photos[0].photo_reference, apiKey)
-              : null;
-          const detailsPhoto =
-            details?.photos?.[0]?.photo_reference && !coverPhoto
-              ? buildGooglePhotoUrl(details.photos[0].photo_reference, apiKey)
-              : null;
-
-          const isStoreByHours = isLikelyStoreByHours(details?.opening_hours?.weekday_text);
           const isMarket =
             isMarketByName(place) &&
             !isSupermarketPlace(place) &&
-            !isStoreByHours &&
             !isExcludedByName(place) &&
             !isExcludedByType(place);
 
-          await supabase.rpc("upsert_market_from_source", {
-            p_source: "google",
-            p_source_id: place.place_id,
-            p_payload: {
-              place,
-              details: details ?? null,
-              details_status: detailsStatus,
-              details_error_message: detailsError,
-            },
-            p_name: details?.name || place.name,
-            p_slug: slugify(place.name),
+          if (!isMarket) {
+            continue;
+          }
+
+          const { data: matchId } = await supabase.rpc("find_market_match", {
+            p_name: place.name,
             p_lat: location.lat,
             p_lng: location.lng,
-            p_address:
-              details?.formatted_address || place.formatted_address || place.vicinity || null,
-            p_city: null,
-            p_region: region.name,
-            p_postcode: null,
-            p_country: "NZ",
-            p_website: details?.website || null,
-            p_phone: details?.international_phone_number || null,
-            p_rating: place.rating ?? null,
-            p_rating_count: place.user_ratings_total ?? null,
-            p_price_level: details?.price_level ?? null,
-            p_editorial_summary: details?.editorial_summary?.overview || null,
-            p_opening_hours_text: details?.opening_hours?.weekday_text || null,
-            p_opening_hours_json: details?.opening_hours || null,
-            p_wheelchair_accessible_entrance:
-              details?.wheelchair_accessible_entrance ?? null,
-            p_wheelchair_accessible_parking: null,
-            p_wheelchair_accessible_restroom: null,
-            p_wheelchair_accessible_seating: null,
-            p_google_reviews: details?.reviews || null,
-            p_is_market: isMarket,
-            p_cover_photo_url: coverPhoto || detailsPhoto,
-            p_market_type: "other",
+            p_distance_meters: 120,
           });
+
+          if (!matchId) {
+            continue;
+          }
+
+          await supabase
+            .from("market_sources")
+            .upsert(
+              {
+                market_id: matchId,
+                source: "google",
+                source_id: place.place_id,
+                payload: null,
+                last_fetched_at: new Date().toISOString(),
+              },
+              { onConflict: "source,source_id" }
+            );
+          linkedCount += 1;
         }
         ingested.push({
           source: `google:${region.name}:${keyword}`,
-          count: limitedPlaces.length,
+          count: linkedCount,
         });
+        await delay(200);
       }
     }
   }

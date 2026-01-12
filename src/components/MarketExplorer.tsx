@@ -51,7 +51,6 @@ export const MarketExplorer = () => {
   const [rangeDays, setRangeDays] = useState(30);
   const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
   const [query, setQuery] = useState("");
-  const [includeStores, setIncludeStores] = useState(false);
   const [marketTypes, setMarketTypes] = useState<string[]>([
     "farmers",
     "night",
@@ -132,7 +131,6 @@ export const MarketExplorer = () => {
     params.set("radiusKm", String(radiusKm));
     params.set("rangeDays", String(rangeDays));
     params.set("dateFilter", dateFilterEnabled ? "1" : "0");
-    params.set("includeStores", includeStores ? "1" : "0");
     if (marketTypes.length > 0) {
       params.set("marketTypes", marketTypes.join(","));
     }
@@ -146,7 +144,6 @@ export const MarketExplorer = () => {
     radiusKm,
     rangeDays,
     dateFilterEnabled,
-    includeStores,
     marketTypes,
     query,
   ]);
@@ -176,9 +173,6 @@ export const MarketExplorer = () => {
 
     const dateEnabled = searchParams.get("dateFilter") === "1";
     setDateFilterEnabled(dateEnabled);
-
-    const includeStoresParam = searchParams.get("includeStores") === "1";
-    setIncludeStores(includeStoresParam);
 
     const typesParam = searchParams.get("marketTypes");
     if (typesParam) {
@@ -221,9 +215,6 @@ export const MarketExplorer = () => {
         params.set("dateFrom", dateRange.start.toISOString());
         params.set("dateTo", dateRange.end.toISOString());
       }
-      if (includeStores) {
-        params.set("includeStores", "1");
-      }
       if (marketTypes.length > 0) {
         params.set("marketTypes", marketTypes.join(","));
       }
@@ -262,7 +253,6 @@ export const MarketExplorer = () => {
     dateRange.end,
     dateRange.start,
     dateFilterEnabled,
-    includeStores,
     marketTypes,
   ]);
 
@@ -278,9 +268,6 @@ export const MarketExplorer = () => {
         const params = new URLSearchParams({
           q: query.trim(),
         });
-        if (includeStores) {
-          params.set("includeStores", "1");
-        }
         const response = await fetch(`/api/markets/suggest?${params.toString()}`, {
           signal: controller.signal,
         });
@@ -298,7 +285,7 @@ export const MarketExplorer = () => {
       controller.abort();
       clearTimeout(handle);
     };
-  }, [query, includeStores]);
+  }, [query]);
 
   const handleUseLocation = () => {
     if (!navigator.geolocation) {
@@ -429,15 +416,6 @@ export const MarketExplorer = () => {
           <label className="flex items-center gap-3 text-sm text-slate-100">
             <input
               type="checkbox"
-              checked={includeStores}
-              onChange={(event) => setIncludeStores(event.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-white/5"
-            />
-            Include stores (non-markets)
-          </label>
-          <label className="flex items-center gap-3 text-sm text-slate-100">
-            <input
-              type="checkbox"
               checked={dateFilterEnabled}
               onChange={(event) => setDateFilterEnabled(event.target.checked)}
               className="h-4 w-4 rounded border-white/20 bg-white/5"
@@ -460,7 +438,6 @@ export const MarketExplorer = () => {
                 setRangeDays(30);
                 setDateFilterEnabled(false);
                 setQuery("");
-                setIncludeStores(false);
                 setMarketTypes(["farmers", "night", "craft", "flea", "other"]);
               }}
               className="rounded-full border border-white/20 px-4 py-2 text-sm text-white/80 transition hover:border-amber-200 hover:text-amber-200"
@@ -542,6 +519,11 @@ export const MarketExplorer = () => {
                     <span>No upcoming date</span>
                   )}
                 </div>
+                {market.has_google_source ? (
+                  <div className="text-[11px] text-slate-300/70">
+                    Powered by Google Places.
+                  </div>
+                ) : null}
               </div>
             </article>
           ))}

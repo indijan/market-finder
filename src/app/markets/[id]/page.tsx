@@ -143,6 +143,11 @@ export default async function MarketDetailPage({
                   </a>
                 ) : null}
               </div>
+              {googleSource ? (
+                <div className="mt-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-200/80">
+                  Powered by Google Places.
+                </div>
+              ) : null}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-slate-200/80">
                 <div className="flex flex-wrap gap-3">
                   {market.rating ? <span>Rating: {market.rating}</span> : null}

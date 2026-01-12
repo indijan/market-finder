@@ -168,7 +168,8 @@ returns table (
   lat double precision,
   lng double precision,
   distance_km double precision,
-  next_event_at timestamptz
+  next_event_at timestamptz,
+  has_google_source boolean
 )
 language sql
 stable
@@ -203,7 +204,13 @@ as $$
     st_y(b.location::geometry) as lat,
     st_x(b.location::geometry) as lng,
     (b.distance_m / 1000.0) as distance_km,
-    e.next_event_at
+    e.next_event_at,
+    exists (
+      select 1
+      from market_sources ms
+      where ms.market_id = b.id
+        and ms.source = 'google'
+    ) as has_google_source
   from base b
   left join lateral (
     select min(me.start_at) as next_event_at
@@ -441,6 +448,46 @@ as $$
   )
   order by similarity(m.name, p_name) desc
   limit 1;
+$$;
+
+create or replace function purge_google_places_cache(
+  p_max_age interval default '30 days'
+)
+returns void
+language plpgsql
+as $$
+begin
+  update markets
+    set
+      rating = null,
+      rating_count = null,
+      price_level = null,
+      editorial_summary = null,
+      opening_hours_text = null,
+      opening_hours_json = null,
+      wheelchair_accessible_entrance = null,
+      wheelchair_accessible_parking = null,
+      wheelchair_accessible_restroom = null,
+      wheelchair_accessible_seating = null,
+      google_reviews = null,
+      cover_photo_url = null
+  where exists (
+    select 1
+    from market_sources ms
+    where ms.market_id = markets.id
+      and ms.source = 'google'
+      and ms.last_fetched_at < now() - p_max_age
+  );
+
+  update market_sources
+    set payload = null
+  where source = 'google'
+    and last_fetched_at < now() - p_max_age;
+
+  delete from markets
+  where source_priority = 'google'
+    and created_at < now() - p_max_age;
+end;
 $$;
 
 -- RLS (optional; enable if desired)
